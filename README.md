@@ -457,4 +457,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Note**: This framework is a complete replacement for the Go version. It maintains the same architecture and functionality while leveraging Python's ecosystem and FastAPI's modern features.
