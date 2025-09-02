@@ -1,0 +1,745 @@
+{
+	"info": {
+		"_postman_id": "python-test-framework-collection",
+		"name": "Python API Test Framework",
+		"description": "Complete API collection for the Python-based API Test Framework. This framework allows you to manage services, test cases, and execute automated API tests.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "python-test-framework"
+	},
+	"item": [
+		{
+			"name": "Health & Status",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": ["{{base_url}}"],
+							"path": ["health"]
+						},
+						"description": "Check if the API Test Framework is running and healthy."
+					},
+					"response": []
+				},
+				{
+					"name": "API Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/health",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "health"]
+						},
+						"description": "Check the health status of the API endpoints."
+					},
+					"response": []
+				}
+			],
+			"description": "Health check endpoints to verify the framework is running."
+		},
+		{
+			"name": "Services",
+			"item": [
+				{
+					"name": "Create Service",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Example API Service\",\n  \"description\": \"A sample service for testing\",\n  \"base_url\": \"https://api.example.com\",\n  \"auth_config_id\": null\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/services/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "services", ""]
+						},
+						"description": "Create a new service that can be tested. The service represents a microservice or API endpoint that you want to test."
+					},
+					"response": []
+				},
+				{
+					"name": "List Services",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/services/?page=1&size=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "services", ""],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Get a paginated list of all services. Use page and size parameters for pagination."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Service by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/services/{{service_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "services", "{{service_id}}"]
+						},
+						"description": "Retrieve a specific service by its ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Service",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Service Name\",\n  \"description\": \"Updated description\",\n  \"base_url\": \"https://api.updated.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/services/{{service_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "services", "{{service_id}}"]
+						},
+						"description": "Update an existing service with new information."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Service",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/services/{{service_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "services", "{{service_id}}"]
+						},
+						"description": "Soft delete a service (marks it as inactive)."
+					},
+					"response": []
+				}
+			],
+			"description": "Service management endpoints. Services represent the APIs or microservices that you want to test."
+		},
+		{
+			"name": "Test Cases",
+			"item": [
+				{
+					"name": "Create Test Case",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"service_id\": \"{{service_id}}\",\n  \"name\": \"Test User Creation\",\n  \"description\": \"Test creating a new user\",\n  \"test_spec\": {\n    \"name\": \"Create User Test\",\n    \"method\": \"POST\",\n    \"path\": \"/users\",\n    \"headers\": {\n      \"Content-Type\": \"application/json\"\n    },\n    \"body\": \"{\\\"name\\\": \\\"John Doe\\\", \\\"email\\\": \\\"john@example.com\\\"}\",\n    \"assertions\": [\n      {\n        \"type\": \"status_code\",\n        \"value\": 201,\n        \"description\": \"Check if user creation returns 201 status\"\n      },\n      {\n        \"type\": \"json_path\",\n        \"path\": \"$.id\",\n        \"value\": \"exists\",\n        \"description\": \"Check if response contains user ID\"\n      }\n    ]\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-cases/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-cases", ""]
+						},
+						"description": "Create a new test case with a complete test specification including assertions."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Test Case from Curl",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"service_id\": \"{{service_id}}\",\n  \"name\": \"Test from Curl\",\n  \"description\": \"Test case created from curl command\",\n  \"curl_command\": \"curl -X POST https://api.example.com/users -H 'Content-Type: application/json' -d '{\\\"name\\\": \\\"Jane Doe\\\", \\\"email\\\": \\\"jane@example.com\\\"}'\",\n  \"assertions\": [\n    {\n      \"type\": \"status_code\",\n      \"value\": 201,\n      \"description\": \"Check if user creation returns 201 status\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-cases/from-curl",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-cases", "from-curl"]
+						},
+						"description": "Create a test case by providing a curl command. The framework will automatically parse the curl command and convert it to a test specification."
+					},
+					"response": []
+				},
+				{
+					"name": "List Test Cases",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-cases/?page=1&size=10&service_id={{service_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-cases", ""],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								},
+								{
+									"key": "service_id",
+									"value": "{{service_id}}"
+								}
+							]
+						},
+						"description": "Get a paginated list of test cases. Optionally filter by service_id."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Test Case by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-cases/{{test_case_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-cases", "{{test_case_id}}"]
+						},
+						"description": "Retrieve a specific test case by its ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Test Case",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Test Case Name\",\n  \"description\": \"Updated description\",\n  \"test_spec\": {\n    \"name\": \"Updated Test\",\n    \"method\": \"POST\",\n    \"path\": \"/users\",\n    \"headers\": {\n      \"Content-Type\": \"application/json\"\n    },\n    \"body\": \"{\\\"name\\\": \\\"Updated User\\\", \\\"email\\\": \\\"updated@example.com\\\"}\",\n    \"assertions\": [\n      {\n        \"type\": \"status_code\",\n        \"value\": 201,\n        \"description\": \"Check if user creation returns 201 status\"\n      }\n    ]\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-cases/{{test_case_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-cases", "{{test_case_id}}"]
+						},
+						"description": "Update an existing test case with new information."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Test Case",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-cases/{{test_case_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-cases", "{{test_case_id}}"]
+						},
+						"description": "Soft delete a test case (marks it as inactive)."
+					},
+					"response": []
+				}
+			],
+			"description": "Test case management endpoints. Test cases define the specific tests you want to run against your services."
+		},
+		{
+			"name": "Test Runs",
+			"item": [
+				{
+					"name": "Create Test Run",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Test Run - {{$timestamp}}\",\n  \"test_case_ids\": [\"{{test_case_id}}\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-runs/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-runs", ""]
+						},
+						"description": "Create a new test run and optionally execute tests if test_case_ids are provided. This will start the test execution in the background."
+					},
+					"response": []
+				},
+				{
+					"name": "Execute Test Run",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"test_case_ids\": [\"{{test_case_id}}\"],\n  \"test_run_name\": \"Manual Test Execution\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-runs/execute",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-runs", "execute"]
+						},
+						"description": "Execute a test run with specified test cases. This is an alternative to creating a test run with test_case_ids."
+					},
+					"response": []
+				},
+				{
+					"name": "List Test Runs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-runs/?page=1&size=10&status=running",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-runs", ""],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								},
+								{
+									"key": "status",
+									"value": "running"
+								}
+							]
+						},
+						"description": "Get a paginated list of test runs. Optionally filter by status (running, completed, failed, cancelled)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Test Run by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-runs/{{test_run_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-runs", "{{test_run_id}}"]
+						},
+						"description": "Retrieve a specific test run by its ID, including execution status and summary."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Test Run Results",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-runs/{{test_run_id}}/results",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-runs", "{{test_run_id}}", "results"]
+						},
+						"description": "Get detailed results for all tests in a specific test run."
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Test Run",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-runs/{{test_run_id}}/cancel",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-runs", "{{test_run_id}}", "cancel"]
+						},
+						"description": "Cancel a running test run. This will stop the execution and mark the test run as cancelled."
+					},
+					"response": []
+				},
+				{
+					"name": "Retry Test Run",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-runs/{{test_run_id}}/retry",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-runs", "{{test_run_id}}", "retry"]
+						},
+						"description": "Retry a failed test run by creating a new test run with the same test cases."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Test Run",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Test Run Name\",\n  \"status\": \"completed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-runs/{{test_run_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-runs", "{{test_run_id}}"]
+						},
+						"description": "Update an existing test run (e.g., change status or name)."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Test Run",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-runs/{{test_run_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-runs", "{{test_run_id}}"]
+						},
+						"description": "Delete a test run and all its associated results."
+					},
+					"response": []
+				}
+			],
+			"description": "Test run management endpoints. Test runs represent the execution of one or more test cases."
+		},
+		{
+			"name": "Test Results",
+			"item": [
+				{
+					"name": "List Test Results",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-results/?page=1&size=10&test_run_id={{test_run_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-results", ""],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								},
+								{
+									"key": "test_run_id",
+									"value": "{{test_run_id}}"
+								}
+							]
+						},
+						"description": "Get a paginated list of test results. Optionally filter by test_run_id."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Test Result by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-results/{{test_result_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-results", "{{test_result_id}}"]
+						},
+						"description": "Retrieve a specific test result by its ID, including detailed execution information."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Test Result",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"passed\",\n  \"error_message\": null\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-results/{{test_result_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-results", "{{test_result_id}}"]
+						},
+						"description": "Update an existing test result (e.g., change status or add notes)."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Test Result",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/test-results/{{test_result_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "test-results", "{{test_result_id}}"]
+						},
+						"description": "Delete a specific test result."
+					},
+					"response": []
+				}
+			],
+			"description": "Test result management endpoints. Test results contain detailed information about individual test executions."
+		},
+		{
+			"name": "Authentication Configs",
+			"item": [
+				{
+					"name": "Create Auth Config",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Basic Auth Config\",\n  \"auth_type\": \"basic\",\n  \"username\": \"testuser\",\n  \"password\": \"testpass\",\n  \"token\": null,\n  \"token_url\": null,\n  \"extra\": {\n    \"realm\": \"test-realm\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth-configs/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth-configs", ""]
+						},
+						"description": "Create a new authentication configuration for services that require authentication."
+					},
+					"response": []
+				},
+				{
+					"name": "List Auth Configs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth-configs/?page=1&size=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth-configs", ""],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Get a paginated list of all authentication configurations."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Auth Config by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth-configs/{{auth_config_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth-configs", "{{auth_config_id}}"]
+						},
+						"description": "Retrieve a specific authentication configuration by its ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Auth Config",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Auth Config\",\n  \"username\": \"newuser\",\n  \"password\": \"newpass\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth-configs/{{auth_config_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth-configs", "{{auth_config_id}}"]
+						},
+						"description": "Update an existing authentication configuration."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Auth Config",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth-configs/{{auth_config_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth-configs", "{{auth_config_id}}"]
+						},
+						"description": "Delete an authentication configuration."
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication configuration management endpoints. These allow you to store and manage authentication credentials for your services."
+		},
+		{
+			"name": "Utilities",
+			"item": [
+				{
+					"name": "Parse Curl Command",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"curl_command\": \"curl -X POST https://api.example.com/users -H 'Content-Type: application/json' -d '{\\\"name\\\": \\\"John Doe\\\", \\\"email\\\": \\\"john@example.com\\\"}'\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/utils/parse-curl",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "utils", "parse-curl"]
+						},
+						"description": "Parse a curl command and return a structured test specification. This is useful for converting existing curl commands into test cases."
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Test Assertions",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"response_example\": {\n    \"id\": 123,\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"status\": \"active\"\n  },\n  \"assertion_types\": [\"status_code\", \"json_path\", \"header\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/utils/generate-assertions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "utils", "generate-assertions"]
+						},
+						"description": "Generate test assertions based on a response example. This helps create comprehensive test cases."
+					},
+					"response": []
+				}
+			],
+			"description": "Utility endpoints that help with test case creation and management."
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set timestamp for test run names",
+					"pm.globals.set('timestamp', Math.floor(Date.now() / 1000));"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string",
+			"description": "Base URL for the Python API Test Framework"
+		},
+		{
+			"key": "service_id",
+			"value": "your-service-id-here",
+			"type": "string",
+			"description": "ID of a service to use in requests"
+		},
+		{
+			"key": "test_case_id",
+			"value": "your-test-case-id-here",
+			"type": "string",
+			"description": "ID of a test case to use in requests"
+		},
+		{
+			"key": "test_run_id",
+			"value": "your-test-run-id-here",
+			"type": "string",
+			"description": "ID of a test run to use in requests"
+		},
+		{
+			"key": "test_result_id",
+			"value": "your-test-result-id-here",
+			"type": "string",
+			"description": "ID of a test result to use in requests"
+		},
+		{
+			"key": "auth_config_id",
+			"value": "your-auth-config-id-here",
+			"type": "string",
+			"description": "ID of an authentication configuration to use in requests"
+		}
+	]
+}
+

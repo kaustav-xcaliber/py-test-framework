@@ -1,0 +1,16 @@
+/.coverage
+/.pytest_cache
+/tests
+/test_auth_integration.py
+/test_simple.py
+__pycache__
+/venv
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pywz
+*.pyzw
+*.pyzwz
+*.pyzwzw
