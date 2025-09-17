@@ -2,10 +2,13 @@
 
 import re
 import json
+import logging
 from typing import Dict, Any, Optional, List
 from urllib.parse import urlparse, parse_qs, unquote
 
 from app.schemas.schemas import CurlRequest, TestSpecBase
+
+logger = logging.getLogger(__name__)
 
 
 class CurlParser:
@@ -28,8 +31,11 @@ class CurlParser:
         if not curl_cmd or not curl_cmd.strip():
             raise ValueError("Curl command cannot be empty")
         
-        # Use manual parsing for better reliability
-        return CurlParser._manual_parse_curl(curl_cmd)
+        try:
+            return CurlParser._manual_parse_curl(curl_cmd)
+        except Exception as e:
+            logger.error(f"Failed to parse curl command: {e}")
+            raise ValueError(f"Invalid curl command: {e}") from e
     
     @staticmethod
     def _extract_path_variables(path: str) -> Dict[str, str]:
@@ -83,9 +89,6 @@ class CurlParser:
         command = curl_cmd.replace('\\\n', ' ').replace('\\', '')
         command = ' '.join(command.split())
         
-        # Debug: print the normalized command
-        print(f"Normalized command: {command}")
-        
         # More robust tokenization that handles nested quotes
         tokens = []
         current_token = ""
@@ -115,11 +118,8 @@ class CurlParser:
         if current_token:
             tokens.append(current_token)
         
-        # Debug: print the tokens
-        print(f"Tokens: {tokens}")
-        
         if not tokens or tokens[0].lower() != 'curl':
-            raise ValueError("Invalid curl command")
+            raise ValueError("Invalid curl command: must start with 'curl'")
         
         # Initialize default values
         method = 'GET'
@@ -144,10 +144,18 @@ class CurlParser:
                     if ':' in header:
                         key, value = header.split(':', 1)
                         headers[key.strip()] = value.strip()
+                    else:
+                        # Handle malformed header gracefully
+                        logger.warning(f"Malformed header: {header}")
             elif token in ['--data', '--data-raw', '--data-binary', '-d']:
                 if i + 1 < len(tokens):
                     i += 1
-                    body = tokens[i].strip("'\"")
+                    body_data = tokens[i].strip("'\"")
+                    # If we already have body data, append it
+                    if body:
+                        body += body_data
+                    else:
+                        body = body_data
                     if method == 'GET':
                         method = 'POST'
             elif token in ['--form', '-F']:
@@ -164,19 +172,13 @@ class CurlParser:
                 # Ignore --location flag, it's just for following redirects
                 pass
             elif not url and not token.startswith('-'):
+                # Found the URL, but continue processing other tokens
                 url = token
-                break
             
             i += 1
         
         if not url:
             raise ValueError("No URL found in curl command")
-        
-        # Debug: print parsed values
-        print(f"Method: {method}")
-        print(f"URL: {url}")
-        print(f"Headers: {headers}")
-        print(f"Body: {body}")
         
         # Parse URL components
         parsed_url = urlparse(url)
@@ -219,19 +221,29 @@ class CurlParser:
         assertions = [
             {
                 "type": "status_code",
-                "value": 200,
-                "description": "Check if response status is 200"
+                "expected": 200,
+                "description": "Check if response status is successful"
             }
         ]
         
-        # Add content type assertion if specified
-        if curl_request.headers.get('content-type'):
+        # Add content type assertion if specified in request headers
+        content_type = curl_request.headers.get('content-type') or curl_request.headers.get('Content-Type')
+        if content_type:
             assertions.append({
                 "type": "header",
                 "path": "content-type",
-                "value": curl_request.headers['content-type'],
-                "description": "Check content type header"
+                "expected": content_type,
+                "matcher": "contains",
+                "description": "Check content type header matches request"
             })
+        
+        # Add response time assertion for performance testing
+        assertions.append({
+            "type": "response_time",
+            "expected": 5000,  # 5 seconds max
+            "matcher": "less_than",
+            "description": "Check response time is acceptable"
+        })
         
         # Add custom assertions if provided
         if custom_assertions:

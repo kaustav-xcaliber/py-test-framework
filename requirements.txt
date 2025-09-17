@@ -26,6 +26,7 @@ passlib[bcrypt]==1.7.4
 python-dotenv==1.0.0
 curl-parser==1.0
 jsonschema==4.20.0
+jsonpath-ng==1.7.0
 
 # Development & Testing
 pytest-cov==4.1.0

@@ -329,6 +329,8 @@ class TestExecutor:
             elif matcher == "regex":
                 import re
                 passed = bool(re.search(expected, str(actual)))
+            elif matcher == "exists":
+                passed = actual is not None
             else:
                 passed = actual == expected
             
@@ -518,13 +520,24 @@ class TestExecutor:
             }
     
     def _extract_json_path(self, data: Any, path: str) -> Any:
-        """Extract value from JSON data using dot notation path."""
+        """Extract value from JSON data using JSONPath or simple dot notation."""
         if not path:
             return data
         
         try:
-            # Handle simple dot notation for now
-            # This can be enhanced with more sophisticated JSON path support
+            # Import jsonpath-ng for JSONPath support
+            from jsonpath_ng import parse
+            
+            # Handle JSONPath expressions (starting with $ or containing array indexing)
+            if path.startswith('$') or '[' in path:
+                jsonpath_expr = parse(path)
+                matches = jsonpath_expr.find(data)
+                if matches:
+                    return matches[0].value
+                else:
+                    raise ValueError(f"JSONPath {path} found no matches")
+            
+            # Fallback to simple dot notation for backward compatibility
             keys = path.split('.')
             current = data
             

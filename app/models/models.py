@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from sqlalchemy import Column, String, Text, Boolean, DateTime, Integer, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
@@ -13,41 +13,99 @@ from app.database.database import Base
 
 class AuthConfig(Base):
     """Authentication configuration for a service."""
-    
+
     __tablename__ = "auth_configs"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     type = Column(String(50), nullable=False)  # "bearer", "api_key", "basic", "oauth2"
+
+    # Bearer
     token = Column(Text, nullable=True)
+
+    # API Key
     key_name = Column(String(100), nullable=True)
     key_value = Column(String(255), nullable=True)
+
+    # Basic
     username = Column(String(100), nullable=True)
     password = Column(String(255), nullable=True)
+
+    # OAuth2
     client_id = Column(String(100), nullable=True)
     client_secret = Column(String(255), nullable=True)
     token_url = Column(Text, nullable=True)
-    extra = Column(JSON, nullable=True)  # Additional configuration
+
+    # Extra config
+    extra = Column(JSON, nullable=True)
+
+    # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert model to dictionary."""
-        return {
-            "id": str(self.id),
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # ---------- Dynamic serialization helpers ----------
+
+    def _fields_for_type(self, t: str) -> List[str]:
+        """Return the list of fields to expose for a given auth type."""
+        mapping = {
+            "bearer": ["token"],
+            "api_key": ["key_name", "key_value"],
+            "apikey": ["key_name", "key_value"],  # tolerate variations
+            "basic": ["username", "password"],
+            "oauth2": ["client_id", "client_secret", "token_url", "token", "extra"],
+            "oauth": ["client_id", "client_secret", "token_url", "token", "extra"],
+        }
+        return mapping.get(t.lower(), [])
+
+    @staticmethod
+    def _mask(value: Any) -> Any:
+        """Mask secrets but preserve hints when string-like."""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            if len(value) > 6:
+                return value[:2] + ("*" * (len(value) - 4)) + value[-2:]
+            return "*" * len(value)
+        return "<redacted>"
+
+    def to_dynamic_dict(self, redact_secrets: bool = True) -> Dict[str, Any]:
+        """
+        Return a dictionary containing only fields relevant to `type`.
+        By default, secrets are masked. Pass redact_secrets=False to return raw values.
+        """
+        result: Dict[str, Any] = {
+            "id": str(self.id) if self.id else None,
             "type": self.type,
-            "token": self.token,
-            "key_name": self.key_name,
-            "key_value": self.key_value,
-            "username": self.username,
-            "password": self.password,
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
-            "token_url": self.token_url,
-            "extra": self.extra or {},
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
         }
 
+        if not self.type:
+            return result
+
+        fields = self._fields_for_type(self.type)
+
+        for f in fields:
+            val = getattr(self, f, None)
+            if redact_secrets and f in ("password", "client_secret", "key_value", "token"):
+                result[f] = self._mask(val)
+            else:
+                result[f] = val
+
+        # always include timestamps
+        result["created_at"] = self.created_at.isoformat() if self.created_at else None
+        result["updated_at"] = self.updated_at.isoformat() if self.updated_at else None
+
+        return result
+
+    def to_dict(self, redact_secrets: bool = True) -> Dict[str, Any]:
+        """
+        Convenience method that calls to_dynamic_dict().
+        Maintains compatibility with other model's to_dict() methods.
+        """
+        return self.to_dynamic_dict(redact_secrets=redact_secrets)
 
 class Service(Base):
     """Service represents a microservice that can be tested."""

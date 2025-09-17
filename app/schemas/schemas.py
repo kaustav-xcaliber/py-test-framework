@@ -12,16 +12,66 @@ T = TypeVar('T')
 # Base schemas
 class AuthConfigBase(BaseModel):
     """Base authentication configuration schema."""
+
     type: str = Field(..., description="Authentication type: bearer, api_key, basic, oauth2")
+
+    # Bearer
     token: Optional[str] = Field(None, description="Authentication token")
+
+    # API Key
     key_name: Optional[str] = Field(None, description="API key name")
     key_value: Optional[str] = Field(None, description="API key value")
+
+    # Basic
     username: Optional[str] = Field(None, description="Username for basic auth")
     password: Optional[str] = Field(None, description="Password for basic auth")
+
+    # OAuth2
     client_id: Optional[str] = Field(None, description="OAuth2 client ID")
     client_secret: Optional[str] = Field(None, description="OAuth2 client secret")
     token_url: Optional[str] = Field(None, description="OAuth2 token URL")
+
+    # Extra config
     extra: Optional[Dict[str, Any]] = Field(None, description="Additional configuration")
+
+    # --------- Dynamic dict helpers ---------
+
+    def _fields_for_type(self) -> List[str]:
+        """Return the list of fields to expose for the current type."""
+        mapping = {
+            "bearer": ["token"],
+            "api_key": ["key_name", "key_value"],
+            "basic": ["username", "password"],
+            "oauth2": ["client_id", "client_secret", "token_url", "token", "extra"],
+        }
+        return mapping.get(self.type.lower(), [])
+
+    @staticmethod
+    def _mask(value: Any) -> Any:
+        """Mask secrets but preserve type/length hints when string-like."""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            if len(value) > 6:
+                return value[:2] + ("*" * (len(value) - 4)) + value[-2:]
+            return "*" * len(value)
+        return "<redacted>"
+
+    def to_dynamic_dict(self, redact_secrets: bool = True) -> Dict[str, Any]:
+        """
+        Return a dictionary with only the fields relevant to `type`.
+        Secrets are masked by default.
+        """
+        result: Dict[str, Any] = {"type": self.type}
+
+        for f in self._fields_for_type():
+            val = getattr(self, f, None)
+            if redact_secrets and f in ("password", "client_secret", "key_value", "token"):
+                result[f] = self._mask(val)
+            else:
+                result[f] = val
+
+        return result
 
 
 class AuthConfigCreate(AuthConfigBase):
@@ -34,14 +84,56 @@ class AuthConfigUpdate(AuthConfigBase):
     pass
 
 
-class AuthConfigResponse(AuthConfigBase):
+class AuthConfigResponse(BaseModel):
     """Schema for authentication configuration response."""
+    
+    # Base fields always included
     id: uuid.UUID
+    type: str
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+        extra = "allow"  # Allow additional fields to be set dynamically
+
+    @classmethod
+    def from_auth_config(cls, auth_config):
+        """Create response from AuthConfig model with dynamic field filtering."""
+        if not auth_config:
+            return None
+            
+        # Get the dynamic dict with masked secrets
+        dynamic_data = auth_config.to_dynamic_dict(redact_secrets=True)
+        
+        # Add required fields
+        base_data = {
+            'id': auth_config.id,
+            'type': auth_config.type,
+            'created_at': auth_config.created_at,
+            'updated_at': auth_config.updated_at
+        }
+        
+        # Add only relevant fields for this auth type
+        type_fields = cls._get_fields_for_type(auth_config.type)
+        for field in type_fields:
+            if field in dynamic_data and dynamic_data[field] is not None:
+                base_data[field] = dynamic_data[field]
+        
+        return cls(**base_data)
+    
+    @staticmethod
+    def _get_fields_for_type(auth_type: str) -> List[str]:
+        """Return the list of fields to expose for a given auth type."""
+        mapping = {
+            "bearer": ["token"],
+            "api_key": ["key_name", "key_value"],
+            "apikey": ["key_name", "key_value"],  # tolerate variations
+            "basic": ["username", "password"],
+            "oauth2": ["client_id", "client_secret", "token_url", "token", "extra"],
+            "oauth": ["client_id", "client_secret", "token_url", "token", "extra"],
+        }
+        return mapping.get(auth_type.lower(), [])
 
 
 class ServiceBase(BaseModel):
@@ -73,6 +165,24 @@ class ServiceResponse(ServiceBase):
 
     class Config:
         from_attributes = True
+    
+    @classmethod
+    def from_service(cls, service):
+        """Create ServiceResponse with properly formatted auth_config."""
+        auth_config_response = None
+        if service.auth_config:
+            auth_config_response = AuthConfigResponse.from_auth_config(service.auth_config)
+        
+        return cls(
+            id=service.id,
+            name=service.name,
+            description=service.description,
+            base_url=service.base_url,
+            is_active=service.is_active,
+            auth_config=auth_config_response,
+            created_at=service.created_at,
+            updated_at=service.updated_at
+        )
 
 
 class TestSpecBase(BaseModel):

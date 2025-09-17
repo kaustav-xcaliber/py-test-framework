@@ -109,134 +109,139 @@ async def execute_test_run(
 def execute_test_run_background(test_run_id: str, test_case_ids: List[str]):
     """Execute test run in background."""
     print(f"Starting test execution for test run {test_run_id} with {len(test_case_ids)} test cases")
+    
+    # Use the new background session manager
+    from app.database.transaction_manager import background_db_session, managed_transaction
+    
     try:
         start_time = time.time()
         
-        # Create a new database session for the background task
-        from app.database.database import SessionLocal
-        db = SessionLocal()
+        with background_db_session() as db:
+            with managed_transaction(db):
+                # Get test run
+                test_run = db.query(TestRun).filter(TestRun.id == test_run_id).first()
+                if not test_run:
+                    print(f"Test run {test_run_id} not found")
+                    return
         
-        # Get test run
-        test_run = db.query(TestRun).filter(TestRun.id == test_run_id).first()
-        if not test_run:
-            return
-        
-        # Get test cases
-        test_cases = db.query(TestCase).filter(
-            TestCase.id.in_(test_case_ids),
-            TestCase.is_active == True
-        ).all()
-        
-        passed_tests = 0
-        failed_tests = 0
-        
-        # Execute each test case
-        for test_case in test_cases:
-            try:
-                # Get service
-                service = db.query(Service).filter(
-                    Service.id == test_case.service_id,
-                    Service.is_active == True
-                ).first()
+                # Get test cases
+                test_cases = db.query(TestCase).filter(
+                    TestCase.id.in_(test_case_ids),
+                    TestCase.is_active == True
+                ).all()
                 
-                if not service:
-                    # Mark test as failed
-                    test_result = TestResult(
-                        test_run_id=test_run_id,
-                        test_case_id=test_case.id,
-                        test_name=test_case.name,
-                        status="failed",
-                        error_message=f"Service {test_case.service_id} not found or inactive",
-                        start_time=datetime.now(timezone.utc),
-                        end_time=datetime.now(timezone.utc),
-                        duration_ms=0,
-                        request_size=0,
-                        response_size=0,
-                        response_time_ms=0
-                    )
-                    db.add(test_result)
-                    failed_tests += 1
-                    continue
+                passed_tests = 0
+                failed_tests = 0
                 
-                # Create test executor with authentication
-                auth_config = None
-                if service.auth_config:
-                    auth_config = service.auth_config.to_dict()
-                
-                with TestExecutor(service.base_url, auth_config=auth_config) as executor:
-                    # Convert test spec back to TestSpecBase
-                    test_spec = TestSpecBase(**test_case.test_spec)
-                    
-                    # Execute test
-                    result = executor.execute_test(test_spec)
-                    
-                    # Create test result
-                    test_result = TestResult(
-                        test_run_id=test_run_id,
-                        test_case_id=test_case.id,
-                        test_name=result.test_name,
-                        status=result.status,
-                        error_message=result.error_message,
-                        response_data=result.response_data,
-                        assertion_results=result.assertion_results,
-                        start_time=datetime.now(timezone.utc),
-                        end_time=datetime.now(timezone.utc),
-                        duration_ms=0,  # Will be calculated
-                        request_size=0,  # Will be calculated
-                        response_size=0,  # Will be calculated
-                        response_time_ms=0  # Will be calculated
-                    )
-                    
-                    db.add(test_result)
-                    
-                    if result.status == "passed":
-                        passed_tests += 1
-                    else:
+                # Execute each test case
+                for test_case in test_cases:
+                    try:
+                        # Get service
+                        service = db.query(Service).filter(
+                            Service.id == test_case.service_id,
+                            Service.is_active == True
+                        ).first()
+                        
+                        if not service:
+                            # Mark test as failed
+                            test_result = TestResult(
+                                test_run_id=test_run_id,
+                                test_case_id=test_case.id,
+                                test_name=test_case.name,
+                                status="failed",
+                                error_message=f"Service {test_case.service_id} not found or inactive",
+                                start_time=datetime.now(timezone.utc),
+                                end_time=datetime.now(timezone.utc),
+                                duration_ms=0,
+                                request_size=0,
+                                response_size=0,
+                                response_time_ms=0
+                            )
+                            db.add(test_result)
+                            failed_tests += 1
+                            continue
+                        
+                        # Create test executor with authentication
+                        auth_config = None
+                        if service.auth_config:
+                            auth_config = service.auth_config.to_dict(redact_secrets=False)
+                        
+                        with TestExecutor(service.base_url, auth_config=auth_config) as executor:
+                            # Convert test spec back to TestSpecBase
+                            test_spec = TestSpecBase(**test_case.test_spec)
+                            
+                            # Execute test
+                            result = executor.execute_test(test_spec)
+                            
+                            # Create test result
+                            test_result = TestResult(
+                                test_run_id=test_run_id,
+                                test_case_id=test_case.id,
+                                test_name=result.test_name,
+                                status=result.status,
+                                error_message=result.error_message,
+                                response_data=result.response_data,
+                                assertion_results=result.assertion_results,
+                                start_time=datetime.now(timezone.utc),
+                                end_time=datetime.now(timezone.utc),
+                                duration_ms=0,  # Will be calculated
+                                request_size=0,  # Will be calculated
+                                response_size=0,  # Will be calculated
+                                response_time_ms=0  # Will be calculated
+                            )
+                            
+                            db.add(test_result)
+                            
+                            if result.status == "passed":
+                                passed_tests += 1
+                            else:
+                                failed_tests += 1
+                        
+                    except Exception as e:
+                        # Mark test as failed due to execution error
+                        test_result = TestResult(
+                            test_run_id=test_run_id,
+                            test_case_id=test_case.id,
+                            test_name=test_case.name,
+                            status="failed",
+                            error_message=str(e),
+                            start_time=datetime.now(timezone.utc),
+                            end_time=datetime.now(timezone.utc),
+                            duration_ms=0,
+                            request_size=0,
+                            response_size=0,
+                            response_time_ms=0
+                        )
+                        db.add(test_result)
                         failed_tests += 1
+                        print(f"Error executing test case {test_case.id}: {e}")
                 
-            except Exception as e:
-                # Mark test as failed due to execution error
-                test_result = TestResult(
-                    test_run_id=test_run_id,
-                    test_case_id=test_case.id,
-                    test_name=test_case.name,
-                    status="failed",
-                    error_message=str(e),
-                    start_time=datetime.now(timezone.utc),
-                    end_time=datetime.now(timezone.utc),
-                    duration_ms=0,
-                    request_size=0,
-                    response_size=0,
-                    response_time_ms=0
-                )
-                db.add(test_result)
-                failed_tests += 1
-        
-        # Update test run
-        end_time = time.time()
-        execution_time_ms = int((end_time - start_time) * 1000)
-        
-        test_run.passed_tests = passed_tests
-        test_run.failed_tests = failed_tests
-        test_run.execution_time_ms = execution_time_ms
-        test_run.status = "completed"
-        test_run.completed_at = datetime.now(timezone.utc)
-        
-        db.commit()
+                # Update test run
+                end_time = time.time()
+                execution_time_ms = int((end_time - start_time) * 1000)
+                
+                test_run.passed_tests = passed_tests
+                test_run.failed_tests = failed_tests
+                test_run.execution_time_ms = execution_time_ms
+                test_run.status = "completed"
+                test_run.completed_at = datetime.now(timezone.utc)
+                
+                print(f"Completed test run {test_run_id}: {passed_tests} passed, {failed_tests} failed")
         
     except Exception as e:
-        # Update test run status to failed
-        test_run = db.query(TestRun).filter(TestRun.id == test_run_id).first()
-        if test_run:
-            test_run.status = "failed"
-            test_run.completed_at = datetime.now(timezone.utc)
-            db.commit()
-        
-        # Log error
+        # Handle errors with proper transaction rollback
         print(f"Error executing test run {test_run_id}: {e}")
-    finally:
-        # Always close the database session
-        db.close()
+        
+        # Try to update test run status to failed in a separate session
+        try:
+            with background_db_session() as error_db:
+                with managed_transaction(error_db):
+                    test_run = error_db.query(TestRun).filter(TestRun.id == test_run_id).first()
+                    if test_run:
+                        test_run.status = "failed"
+                        test_run.completed_at = datetime.now(timezone.utc)
+        except Exception as update_error:
+            print(f"Failed to update test run status: {update_error}")
 
 
 @router.get("/", response_model=PaginatedResponse[TestRunResponse])

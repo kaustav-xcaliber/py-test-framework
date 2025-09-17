@@ -2,12 +2,14 @@
 
 import os
 from typing import List, Union, Any
-from pydantic import Field, field_validator, field_serializer, computed_field
-from pydantic_settings import BaseSettings
+from pydantic import Field, field_validator, field_serializer, computed_field, ConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def parse_comma_separated(value: Any) -> List[str]:
     """Parse comma-separated string into list."""
+    if value is None or value == "":
+        return []
     if isinstance(value, str):
         return [item.strip() for item in value.split(",") if item.strip()]
     elif isinstance(value, list):
@@ -17,6 +19,13 @@ def parse_comma_separated(value: Any) -> List[str]:
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
+    
+    model_config = SettingsConfigDict(
+        env_file=".env" if not os.getenv("TESTING") else None,
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra='allow'  # Allow extra fields from environment
+    )
     
     # Database Configuration
     database_url: str = Field(
@@ -39,14 +48,21 @@ class Settings(BaseSettings):
     # Application Configuration
     app_name: str = Field(default="API Test Framework", env="APP_NAME")
     app_version: str = Field(default="1.0.0", env="APP_VERSION")
-    debug: bool = Field(default=True, env="DEBUG")
+    debug: bool = Field(default=False, env="DEBUG")  # Changed to False for production
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
+    sql_echo: bool = Field(default=False, env="SQL_ECHO")  # Separate SQL logging control
     secret_key: str = Field(default="your-secret-key-here", env="SECRET_KEY")
-    allowed_hosts: List[str] = Field(
-        default=["localhost", "127.0.0.1"],
+    allowed_hosts_raw: str = Field(
+        default="localhost,127.0.0.1",
         description="Comma-separated list of allowed hosts",
-        exclude=True  # Don't load from environment variables
+        env="ALLOWED_HOSTS",
     )
+
+    @computed_field  
+    @property
+    def allowed_hosts(self) -> List[str]:
+        """Parse allowed hosts from comma-separated string."""
+        return parse_comma_separated(self.allowed_hosts_raw)
     
     # Server Configuration
     host: str = Field(default="0.0.0.0", env="HOST")
@@ -63,17 +79,18 @@ class Settings(BaseSettings):
     upload_dir: str = Field(default="./uploads", env="UPLOAD_DIR")
     
     # CORS Configuration
-    cors_origins: List[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8080"],
+    cors_origins_raw: str = Field(
+        default="http://localhost:3000,http://localhost:8080",
         description="Comma-separated list of CORS origins",
-        exclude=True  # Don't load from environment variables
+        env="CORS_ORIGINS"
     )
     cors_allow_credentials: bool = Field(default=True, env="CORS_ALLOW_CREDENTIALS")
-    
-    class Config:
-        env_file = ".env" if not os.getenv("TESTING") else None
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+
+    @computed_field  
+    @property
+    def cors_origins(self) -> List[str]:
+        """Parse CORS origins from comma-separated string."""
+        return parse_comma_separated(self.cors_origins_raw)
 
 
 # Global settings instance - lazy creation to avoid import-time issues

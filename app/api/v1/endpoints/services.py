@@ -38,7 +38,7 @@ async def create_service(
         # Create auth config if provided
         auth_config = None
         if service_data.auth_config:
-            auth_config = AuthConfig(**service_data.auth_config.dict())
+            auth_config = AuthConfig(**service_data.auth_config.model_dump())
             db.add(auth_config)
             db.flush()  # Get the ID
         
@@ -55,7 +55,7 @@ async def create_service(
         db.commit()
         db.refresh(service)
         
-        return ServiceResponse.from_orm(service)
+        return ServiceResponse.from_service(service)
         
     except Exception as e:
         db.rollback()
@@ -94,7 +94,7 @@ async def list_services(
         pages = (total + pagination.size - 1) // pagination.size
         
         return PaginatedResponse(
-            items=[ServiceResponse.model_validate(service) for service in services],
+            items=[ServiceResponse.from_service(service) for service in services],
             total=total,
             page=pagination.page,
             size=pagination.size,
@@ -120,7 +120,7 @@ async def get_service(
         if not service:
             raise NotFoundError("Service", service_id)
         
-        return ServiceResponse.from_orm(service)
+        return ServiceResponse.from_service(service)
         
     except Exception as e:
         raise e
@@ -180,7 +180,7 @@ async def update_service(
         db.commit()
         db.refresh(service)
         
-        return ServiceResponse.from_orm(service)
+        return ServiceResponse.from_service(service)
         
     except Exception as e:
         db.rollback()
@@ -237,7 +237,7 @@ async def activate_service(
         db.commit()
         db.refresh(service)
         
-        return ServiceResponse.from_orm(service)
+        return ServiceResponse.from_service(service)
         
     except Exception as e:
         db.rollback()
