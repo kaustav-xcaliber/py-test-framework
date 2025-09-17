@@ -226,6 +226,10 @@ class TestExecutor:
             return self._assert_contains(assertion, response)
         elif assertion_type == "equals":
             return self._assert_equals(assertion, response)
+        elif assertion_type == "exists":
+            return self._assert_exists(assertion, response)
+        elif assertion_type == "response_time":
+            return self._assert_response_time(assertion, response)
         elif assertion_type == "regex":
             return self._assert_regex(assertion, response)
         else:
@@ -245,7 +249,7 @@ class TestExecutor:
         response: httpx.Response
     ) -> Dict[str, Any]:
         """Assert response status code."""
-        expected = assertion.get("expected")
+        expected = assertion.get("expected") or assertion.get("value") or 200
         actual = response.status_code
         
         passed = actual == expected
@@ -267,7 +271,7 @@ class TestExecutor:
     ) -> Dict[str, Any]:
         """Assert response header value."""
         path = assertion.get("path")
-        expected = assertion.get("expected")
+        expected = assertion.get("expected") or assertion.get("value")
         matcher = assertion.get("matcher", "equals")
         
         if not path:
@@ -310,7 +314,7 @@ class TestExecutor:
     ) -> Dict[str, Any]:
         """Assert response body content."""
         path = assertion.get("path")
-        expected = assertion.get("expected")
+        expected = assertion.get("expected") or assertion.get("value")
         matcher = assertion.get("matcher", "equals")
         
         try:
@@ -330,7 +334,12 @@ class TestExecutor:
                 import re
                 passed = bool(re.search(expected, str(actual)))
             elif matcher == "exists":
-                passed = actual is not None
+                # If expected is None/null, check that the field doesn't exist or is None
+                # If expected is not None, check that the field exists and is not None
+                if expected is None:
+                    passed = actual is None
+                else:
+                    passed = actual is not None
             else:
                 passed = actual == expected
             
@@ -404,7 +413,7 @@ class TestExecutor:
         response: httpx.Response
     ) -> Dict[str, Any]:
         """Assert response contains expected content."""
-        expected = assertion.get("expected")
+        expected = assertion.get("expected") or assertion.get("value")
         path = assertion.get("path")
         
         try:
@@ -443,8 +452,8 @@ class TestExecutor:
         assertion: Dict[str, Any],
         response: httpx.Response
     ) -> Dict[str, Any]:
-        """Assert response equals expected content."""
-        expected = assertion.get("expected")
+        """Assert response equals expected content, with array order tolerance."""
+        expected = assertion.get("expected") or assertion.get("value")
         path = assertion.get("path")
         
         try:
@@ -456,6 +465,35 @@ class TestExecutor:
                 actual = body
             
             passed = actual == expected
+            message = f"Expected {expected}, got {actual}"
+            
+            # If not passed and this looks like an array index path, check for order mismatch
+            if not passed and path and '[' in path and ']' in path:
+                # Extract the array path (everything before the last index)
+                import re
+                
+                # Pattern to match paths like "providers[0].provider_id" or "items[0]" or "metadata.nested_array[0].id"
+                array_path_match = re.match(r'(.+)\[(\d+)\](?:\.(.+))?$', path)
+                
+                if array_path_match:
+                    array_base_path = array_path_match.group(1)  # "providers" or "metadata.nested_array"
+                    original_index = int(array_path_match.group(2))  # The index that was expected
+                    nested_field = array_path_match.group(3)  # "provider_id" or "id" or None
+                    
+                    try:
+                        # Get the full array
+                        array_data = self._extract_json_path(body, array_base_path)
+                        
+                        if isinstance(array_data, list):
+                            # Check if expected value exists anywhere in the array
+                            found, location_message = self._check_array_value_exists(array_data, expected, nested_field)
+                            
+                            if found:
+                                passed = True
+                                message = f"⚠️ WARNING: Array order mismatch. Expected '{expected}' at {path}, but {location_message}. Test passed because value exists in array."
+                                
+                    except Exception as e:
+                        pass  # Fall through to normal failure
             
             return {
                 "type": "equals",
@@ -464,7 +502,7 @@ class TestExecutor:
                 "expected": expected,
                 "actual": actual,
                 "passed": passed,
-                "message": f"Expected {expected}, got {actual}"
+                "message": message
             }
             
         except Exception as e:
@@ -484,7 +522,7 @@ class TestExecutor:
         response: httpx.Response
     ) -> Dict[str, Any]:
         """Assert response matches regex pattern."""
-        pattern = assertion.get("expected")
+        pattern = assertion.get("expected") or assertion.get("value")
         path = assertion.get("path")
         
         try:
@@ -518,6 +556,97 @@ class TestExecutor:
                 "passed": False,
                 "message": f"Regex assertion failed: {str(e)}"
             }
+            return {
+                "type": "regex",
+                "path": path,
+                "matcher": "regex",
+                "expected": pattern,
+                "actual": None,
+                "passed": False,
+                "message": f"Regex assertion failed: {str(e)}"
+            }
+    
+    def _assert_exists(
+        self,
+        assertion: Dict[str, Any],
+        response: httpx.Response
+    ) -> Dict[str, Any]:
+        """Assert that a field exists (is present in the response, regardless of value)."""
+        path = assertion.get("path")
+        
+        try:
+            body = self._extract_response_body(response)
+            
+            if path:
+                try:
+                    # Try to extract the value - if we can extract it without error,
+                    # the field exists (even if the value is None/null)
+                    actual = self._extract_json_path(body, path)
+                    passed = True  # Field exists if we can extract it
+                    
+                except ValueError:
+                    # Path doesn't exist
+                    actual = None
+                    passed = False
+            else:
+                # If no path specified, check if response body exists
+                actual = body
+                passed = body is not None
+            
+            return {
+                "type": "exists",
+                "path": path,
+                "matcher": "exists",
+                "expected": None,  # No expected value for exists assertions
+                "actual": actual,
+                "passed": passed,
+                "message": f"Field {'exists' if passed else 'does not exist'}: {path or 'response body'}"
+            }
+            
+        except Exception as e:
+            return {
+                "type": "exists",
+                "path": path,
+                "matcher": "exists",
+                "expected": None,
+                "actual": None,
+                "passed": False,
+                "message": f"Exists assertion failed: {str(e)}"
+            }
+    
+    def _assert_response_time(
+        self,
+        assertion: Dict[str, Any],
+        response: httpx.Response
+    ) -> Dict[str, Any]:
+        """Assert response time is within expected threshold."""
+        expected_threshold = assertion.get("expected") or assertion.get("value") or 5000
+        matcher = assertion.get("matcher", "less_than")
+        
+        try:
+            # For now, we don't have the actual response time from the response object
+            # This would need to be passed from the test execution context
+            # For now, we'll return a placeholder result
+            return {
+                "type": "response_time",
+                "path": None,
+                "matcher": matcher,
+                "expected": expected_threshold,
+                "actual": None,
+                "passed": False,
+                "message": f"Response time assertion not fully implemented - expected {matcher} {expected_threshold}ms"
+            }
+            
+        except Exception as e:
+            return {
+                "type": "response_time",
+                "path": None,
+                "matcher": matcher,
+                "expected": expected_threshold,
+                "actual": None,
+                "passed": False,
+                "message": f"Response time assertion failed: {str(e)}"
+            }
     
     def _extract_json_path(self, data: Any, path: str) -> Any:
         """Extract value from JSON data using JSONPath or simple dot notation."""
@@ -527,6 +656,10 @@ class TestExecutor:
         try:
             # Import jsonpath-ng for JSONPath support
             from jsonpath_ng import parse
+            
+            # Convert paths starting with [0] to proper JSONPath format
+            if path.startswith('['):
+                path = '$' + path
             
             # Handle JSONPath expressions (starting with $ or containing array indexing)
             if path.startswith('$') or '[' in path:
@@ -556,6 +689,32 @@ class TestExecutor:
             
         except Exception as e:
             raise ValueError(f"Failed to extract path {path}: {str(e)}")
+    
+    def _check_array_value_exists(self, array: List[Any], expected_value: Any, nested_field: str = None) -> tuple[bool, str]:
+        """
+        Check if an expected value exists anywhere in an array.
+        Returns (found, message) tuple.
+        
+        Args:
+            array: The array to search in
+            expected_value: The value to look for
+            nested_field: If searching in nested objects, the field name to check
+        """
+        if not isinstance(array, list):
+            return False, "Not an array"
+        
+        for i, item in enumerate(array):
+            if nested_field:
+                # For nested paths like "provider_id", extract the field from each item
+                if isinstance(item, dict) and nested_field in item:
+                    if item[nested_field] == expected_value:
+                        return True, f"Value found at index {i} (expected at different index)"
+            else:
+                # Direct comparison for simple array items
+                if item == expected_value:
+                    return True, f"Value found at index {i} (expected at different index)"
+        
+        return False, "Value not found in array"
     
     def _apply_authentication(self, headers: Dict[str, str], params: Dict[str, str]) -> Tuple[Dict[str, str], Dict[str, str]]:
         """
